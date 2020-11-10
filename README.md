@@ -1,1 +1,3 @@
-A REST-service for file upload/download;
+Одно из тестовых заданий на позицию Java Developer, условия в Java_dev_test.docx;
+
+Выполнены уровни 1 и 2, 2.е - частично, а так же 3.в
