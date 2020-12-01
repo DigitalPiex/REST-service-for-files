@@ -1,13 +1,12 @@
 package com.example.filedemo.test;
 
+import java.util.LinkedList;
+import java.util.List;
+
 public class TestClass {
 
 	public static void main(String[] args) {
-
-		String asd = "D:\\NewFolder\\Pirozhkov_Nikolay.pdf".replace("\\\\", "\\");
-		System.out.println(asd);
-
+		List<Integer> list = new LinkedList<>();
 	}
 }
-
 

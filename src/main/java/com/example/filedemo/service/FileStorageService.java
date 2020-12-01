@@ -6,14 +6,13 @@ import com.example.filedemo.exception.MyFileNotFoundException;
 import com.example.filedemo.exception.ValidationException;
 import com.example.filedemo.model.FileModel;
 import com.example.filedemo.property.FileStorageProperties;
+import com.example.filedemo.utiltools.Utility;
 import org.apache.tomcat.util.http.fileupload.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,8 +35,9 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @Service
-public class FileStorageService implements FileStorage {
+public class FileStorageService implements FileStorageCRUDMethods, FileStorageGetMethods, FileStorageValidator {
 
+	private Utility utilityManager;
 	private FileModelDao fileModelDao;
 	private Path fileStorageLocation;
 	private static final Calendar CALENDAR = new GregorianCalendar();
@@ -45,10 +45,11 @@ public class FileStorageService implements FileStorage {
 	private static Logger logger = LoggerFactory.getLogger(FileStorageService.class);
 
 	@Autowired
-	public FileStorageService(FileModelDao fileModelDao, FileStorageProperties fileStorageProperties) {
+	public FileStorageService(FileModelDao fileModelDao, FileStorageProperties fileStorageProperties, Utility utilityManager) {
 		this.fileModelDao = fileModelDao;
 		this.fileStorageLocation = Paths.get(fileStorageProperties.getUploadDir())
 				.toAbsolutePath().normalize();
+		this.utilityManager = utilityManager;
 
 		try {
 			Files.createDirectories(this.fileStorageLocation);
@@ -221,6 +222,24 @@ public class FileStorageService implements FileStorage {
 	}
 
 	@Override
+	public void validateFile(MultipartFile file) {
+
+		if (file.getSize() > 15_000_000L)
+			throw new ValidationException("File size must be less than 15 MB");
+
+		if (!((file.getOriginalFilename().endsWith(".pdf") ||
+				file.getOriginalFilename().endsWith(".txt") ||
+				file.getOriginalFilename().endsWith(".png") ||
+				file.getOriginalFilename().endsWith(".gif") ||
+				file.getOriginalFilename().endsWith(".jpg") ||
+				file.getOriginalFilename().endsWith(".jpeg") ||
+				file.getOriginalFilename().endsWith(".doc") ||
+				file.getOriginalFilename().endsWith(".docx"))))
+			throw new ValidationException("This type of file is not supported: " + file.getContentType());
+	}
+
+
+	@Override
 	@Transactional
 	public byte[] downloadFilesAsSingleArchive(String filesId, HttpServletResponse response) throws IOException {
 
@@ -263,91 +282,13 @@ public class FileStorageService implements FileStorage {
 	}
 
 	public ResponseEntity<Resource> getResourceResponseEntity(HttpServletRequest request, Resource resource) {
-		String contentType = null;
-		try {
-			contentType = request.getServletContext().getMimeType(resource.getFile().getAbsolutePath());
-		} catch (IOException ex) {
-			logger.info("Could not determine file type.");
-		}
-
-		// Fallback to the default content type if type could not be determined
-		if (contentType == null) {
-			contentType = "application/octet-stream";
-		}
-
-		return ResponseEntity.ok()
-				.contentType(MediaType.parseMediaType(contentType))
-				.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
-				.body(resource);
+		return utilityManager.getResourceResponseEntity(request, resource);
 	}
 
 	public void renameFileAndChangeFileModelProperties(String fileName, FileModel tempFileModel) {
 
-		StringBuilder stringBuilder = new StringBuilder();
-
-		String filePath = tempFileModel.getFilePath();
-
-		String type = getFileType(tempFileModel);
-
-		String newFilePath = getNewFilePath(fileName, stringBuilder, filePath, type);
-
-		setNewFileModelProperties(fileName, tempFileModel, type, newFilePath);
-
-		renameAndRemove(filePath, newFilePath);
+		utilityManager.renameFileAndChangeFileModelProperties(fileName, tempFileModel);
 	}
-
-	public void renameAndRemove(String filePath, String newFilePath) {
-		File file = new File(filePath);
-		File file2 = new File(newFilePath);
-
-		try {
-			file.renameTo(file2);
-			Files.move(Path.of(filePath), Path.of(newFilePath));
-		} catch (IOException e) {
-			e.getMessage();
-		}
-	}
-
-	public void setNewFileModelProperties(String fileName, FileModel tempFileModel, String type, String newFilePath) {
-
-		Date date = new Date();
-
-		tempFileModel.setFileName(fileName + "." + type);
-		tempFileModel.setChangeDate(DATE_FORMAT_FOR_MYSQL_TABLE.format(date));
-		tempFileModel.setFilePath(newFilePath);
-	}
-
-	public String getNewFilePath(String fileName, StringBuilder stringBuilder, String filePath, String type) {
-		String[] oldPath = filePath.split("\\\\");
-		for (int i = 0; i < oldPath.length - 1; i++) {
-			stringBuilder.append(oldPath[i]).append("\\");
-		}
-		stringBuilder.append(fileName).append(".").append(type);
-		return stringBuilder.toString();
-	}
-
-	private void validateFile(MultipartFile file) {
-
-		if (file.getSize() > 15_000_000L)
-			throw new ValidationException("File size must be less than 15 MB");
-
-		if (!((file.getOriginalFilename().endsWith(".pdf") ||
-				file.getOriginalFilename().endsWith(".txt") ||
-				file.getOriginalFilename().endsWith(".png") ||
-				file.getOriginalFilename().endsWith(".gif") ||
-				file.getOriginalFilename().endsWith(".jpg") ||
-				file.getOriginalFilename().endsWith(".jpeg") ||
-				file.getOriginalFilename().endsWith(".doc") ||
-				file.getOriginalFilename().endsWith(".docx"))))
-			throw new ValidationException("This type of file is not supported: " + file.getContentType());
-	}
-
-
-	public String getFileType(FileModel tempFileModel) {
-		String[] fileType = tempFileModel.getFileName().split("\\.");
-		return fileType[fileType.length - 1];
-	}
-
 
 }
 

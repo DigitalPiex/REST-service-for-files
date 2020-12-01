@@ -4,8 +4,6 @@ import com.example.filedemo.exception.FileStorageException;
 import com.example.filedemo.model.FileModel;
 import com.example.filedemo.property.FileStorageProperties;
 import com.example.filedemo.service.FileStorageService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +21,6 @@ import java.util.List;
 @RestController
 public class FileController {
 
-	private static final Logger logger = LoggerFactory.getLogger(FileController.class);
 	private final FileStorageService fileStorageService;
 	private Path fileStorageLocation;
 
